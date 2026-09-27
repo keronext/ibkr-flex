@@ -1,0 +1,11 @@
+# Copy this file to flex-queries.toml and replace every value with the
+# corresponding Query ID from the IBKR Client Portal.
+cash = 100000001
+dividends_accruals = 100000002
+interest_accruals = 100000003
+lent = 100000004
+nav_base = 100000005
+options_paid = 100000006
+pnl = 100000007
+st_of_funds = 100000008
+trades = 100000009

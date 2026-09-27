@@ -1,0 +1,19 @@
+{
+  "date_start": "2024-12-01",
+  "date_end": null,
+  "version_number": "1",
+  "sections": [],
+  "columns": [
+    "ClientAccountID",
+    "AccountAlias",
+    "Model",
+    "CurrencyPrimary",
+    "FromDate",
+    "ToDate",
+    "StartingAccrualBalance",
+    "InterestAccrued",
+    "AccrualReversal",
+    "FXTranslation",
+    "EndingAccrualBalance"
+  ]
+}

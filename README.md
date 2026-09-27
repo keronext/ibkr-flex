@@ -1,125 +1,183 @@
 # ibkr-flex
 
-`ibkr-flex` is a command-line tool for downloading and locally archiving Interactive Brokers Flex Query data.
+`ibkr-flex` is a command-line tool for downloading, locally archiving, and
+validating Interactive Brokers Flex Query CSV reports.
 
-It is designed for users who want to maintain their own local copy of their Interactive Brokers data in a structured and reproducible format.
+It is designed for users who want a structured, reproducible local copy of
+their IBKR data. Reports remain on the local filesystem and can be archived or
+consumed by other tools and data-processing pipelines.
 
-`ibkr-flex` retrieves predefined Flex Queries from Interactive Brokers and stores the resulting CSV files locally.
+## Setup
 
-## Principles
+Create a Flex Web Service token in the IBKR Client Portal, then configure it
+locally:
 
-- Interactive Brokers data remains under the user's control.
-- Flex reports are downloaded and stored on the local filesystem.
-- Flex Queries must follow the configuration documented by this project.
-- Downloaded files follow a predictable structure and naming convention.
-- The resulting files can be archived or consumed by other tools and data-processing pipelines.
+```sh
+cp .env.example .env
+# Set FLEX_WEB_SERVICE_TOKEN in .env
+```
 
-## IBKR Flex Query configuration
+The token is read only from `.env`; never pass it as a command-line argument.
+Do not commit it, include it in source code or logs, or share it in an issue or
+bug report.
 
-Before using `ibkr-flex`, the required Flex Queries must be created in the Interactive Brokers Client Portal.
+## Flex Query configuration
 
-Each Flex Query must contain the sections and columns expected by `ibkr-flex`.
+Create the required Flex Queries in the IBKR Client Portal. Their query IDs
+are stored locally in `flex-queries.toml`. Create it from the versioned
+example, then replace each placeholder with the corresponding ID from the
+Client Portal:
 
-The exact configuration required for each supported Flex Query will be documented in this repository.
+```sh
+cp flex-queries.toml.example flex-queries.toml
+```
 
-Initial query types include:
+`flex-queries.toml` is ignored by Git because it contains account-specific
+configuration. Environment variables such as `FLEX_CASH` are not needed.
 
-- Cash
-- Trades
+The currently configured query types are:
 
-Additional Flex Query types will be supported progressively.
+- `cash`
+- `dividends_accruals`
+- `interest_accruals`
+- `lent`
+- `nav_base`
+- `options_paid`
+- `pnl`
+- `st_of_funds`
+- `trades`
 
-> The complete list of required sections and columns is currently being defined.
+Each query type has a schema directory, for example
+[`schemas/flex/cash/`](schemas/flex/cash/). Each JSON file in that directory
+defines one version and records the expected CSV columns in their exact order.
+
+Each schema includes a non-empty string `version_number` and validity period:
+`date_start` is required, while `date_end: null` means that the version is
+currently active. Dates use the `YYYY-MM-DD` format.
+The validator selects the only schema whose validity period covers the report
+month; overlapping periods are rejected.
 
 ## Usage
 
-The CLI is currently under development.
+List the configured Flex Queries and their query IDs:
 
-The intended usage will look similar to:
-
-```bash
-ibkr-flex fetch cash \
-    --query-id 1190415 \
-    --from 2026-01-01 \
-    --to 2026-01-31
+```sh
+cargo run -- list flex
 ```
 
-`ibkr-flex` handles the communication with the IBKR Flex Web Service and stores the resulting CSV file locally according to its directory and naming conventions.
+After a release build, the direct equivalent is:
+
+```sh
+./target/release/ibkr-flex-cli list flex
+```
+
+Fetches default to the last complete calendar month and write a report to
+`downloads/<type>/YYYY-MM.csv`:
+
+```sh
+cargo run -- fetch cash --root ./downloads
+```
+
+### Build and run the binary
+
+Build an optimized binary:
+
+```sh
+cargo build --release
+```
+
+Then run it directly, without Cargo:
+
+```sh
+./target/release/ibkr-flex-cli fetch cash --root ./downloads
+```
+
+Use `--date` for a year, month, or day:
+
+```sh
+cargo run -- fetch cash --date 2026 --root ./downloads
+cargo run -- fetch cash --date 2026-08 --root ./downloads
+cargo run -- fetch cash --date 2025-08-03 --root ./downloads
+```
+
+Use `--from` and `--to` for an arbitrary inclusive range:
+
+```sh
+cargo run -- fetch cash --from 2025-08-03 --to 2025-08-10 --root ./downloads
+```
+
+For a completed year, `--date 2025` requests the period from 2025-01-01 to
+2025-12-31. Do not use `--date 2026` while 2026 is still in progress: it
+would include future dates. Instead, request the available portion explicitly,
+for example:
+
+```sh
+cargo run -- fetch cash --from 2026-01-01 --to 2026-09-26 --root ./downloads
+```
+
+The maximum range is 365 days, matching the IBKR limit. It may be reduced for
+an invocation with `--max-days N` (between 1 and 365).
+
+To use a Query ID that is not in `flex-queries.toml`:
+
+```sh
+cargo run -- fetch cash --query-id 12345678 --root ./downloads
+```
+
+Validate a downloaded report against its schema:
+
+```sh
+cargo run -- validate --type cash ./downloads/cash/2025-10.csv
+```
+
+The equivalent direct invocation is:
+
+```sh
+./target/release/ibkr-flex-cli validate --type cash ./downloads/cash/2025-10.csv
+```
+
+Validation warns when the report has no data rows. Schemas enforce the exact
+column list in `schemas/flex/<type>/*.json`; column order is significant.
+The CSV filename embeds its period: `YYYY.csv`, `YYYY-MM.csv`,
+`YYYY-MM-DD.csv`, or `<start>_to_<end>.csv`. Its end date is used to select
+the schema validity period.
 
 ## Local storage
 
-Flex reports are stored on the user's local filesystem.
-
-The exact directory layout is still being defined. It will follow a predictable structure based on the Flex Query type and reporting period.
-
-For example:
+Reports are kept locally using a predictable layout:
 
 ```text
-ibkr/
+downloads/
 ├── cash/
-│   ├── 2026-01.csv
-│   └── 2026-02.csv
+│   └── 2025-10.csv
 └── trades/
-    ├── 2026-01.csv
-    └── 2026-02.csv
+    └── 2025-10.csv
 ```
 
-The local archive belongs to the user and can be backed up, moved, or processed independently from `ibkr-flex`.
-
-## Authentication
-
-Access to the IBKR Flex Web Service requires a Flex Web Service token.
-
-The token must not be passed directly as a command-line argument because command-line arguments may be exposed through shell history or process inspection.
-
-The exact credential configuration mechanism will be documented before the first release.
-
-## Security
-
-Your Interactive Brokers Flex Web Service token is a secret.
-
-Never:
-
-- commit a Flex token to Git;
-- embed a token in source code;
-- include a token in logs;
-- publish a token in an issue or bug report.
-
-Users are responsible for storing their credentials securely.
+The archive belongs to you and can be backed up, moved, or processed
+independently from `ibkr-flex`.
 
 ## Scope
 
-`ibkr-flex` focuses on retrieving and locally archiving Interactive Brokers Flex Query data.
-
-It does not provide:
-
-- portfolio management;
-- accounting;
-- portfolio analytics;
-- broker reconciliation;
-- remote data storage;
-- user or account management.
-
-The generated files remain independent and may be consumed by other applications or data-processing pipelines.
+`ibkr-flex` retrieves and locally archives IBKR Flex Query data. It does not
+provide portfolio management, accounting, analytics, reconciliation, remote
+storage, or user/account management.
 
 ## Project status
 
 > **Early development**
 
-The CLI, local storage conventions, and required IBKR Flex Query configurations are currently being defined.
-
-The interface and file conventions may change before the first stable release.
+Interfaces, query configurations, and file conventions may change before the
+first stable release.
 
 ## Disclaimer
 
-This project is an independent open-source project and is not affiliated with, endorsed by, or sponsored by Interactive Brokers LLC.
-
-Interactive Brokers, IBKR, and related trademarks are the property of their respective owners.
-
-Users are responsible for complying with Interactive Brokers' terms and requirements when accessing its services.
+This independent open-source project is not affiliated with, endorsed by, or
+sponsored by Interactive Brokers LLC. Interactive Brokers, IBKR, and related
+trademarks are the property of their respective owners. Users are responsible
+for complying with Interactive Brokers' terms and requirements.
 
 ## License
 
-Licensed under the Apache License, Version 2.0.
-
-See [LICENSE](LICENSE) for details.
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for
+details.
