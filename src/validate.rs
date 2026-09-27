@@ -2,6 +2,7 @@ use crate::{
     Result,
     schema::{report_end_from_filename, schema_for_report},
 };
+use chrono::Utc;
 use std::{fs, path::Path};
 
 pub struct ValidationResult {
@@ -11,8 +12,11 @@ pub struct ValidationResult {
 }
 
 pub fn validate_csv(file: &Path, schema_dir: &Path, query_type: &str) -> Result<ValidationResult> {
-    let report_end = report_end_from_filename(file)?;
-    let schema = schema_for_report(schema_dir, query_type, report_end)?;
+    // Le nom du fichier indique la période couverte par le rapport, mais la
+    // version du schéma dépend de la date à laquelle il est traité.
+    let _ = report_end_from_filename(file)?;
+    let processing_date = Utc::now().date_naive();
+    let schema = schema_for_report(schema_dir, query_type, processing_date)?;
     let content = fs::read(file).map_err(|error| error.to_string())?;
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(false)

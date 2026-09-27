@@ -15,7 +15,7 @@ pub struct Schema {
 pub fn schema_for_report(
     schema_dir: &Path,
     query_type: &str,
-    report_date: NaiveDate,
+    processing_date: NaiveDate,
 ) -> Result<Schema> {
     let type_dir = schema_dir.join(query_type);
     let entries = fs::read_dir(&type_dir)
@@ -30,7 +30,7 @@ pub fn schema_for_report(
     let mut matches = Vec::new();
     for path in schema_paths {
         let schema: Schema = read_json(&path)?;
-        if schema_covers_report(&schema, report_date)? {
+        if schema_covers_processing_date(&schema, processing_date)? {
             matches.push((path, schema));
         }
     }
@@ -38,13 +38,13 @@ pub fn schema_for_report(
     match matches.len() {
         1 => Ok(matches.pop().expect("one schema").1),
         0 => Err(format!(
-            "Aucun schéma applicable au rapport {} dans {}.",
-            report_date.format("%Y-%m-%d"),
+            "Aucun schéma applicable à la date de traitement {} dans {}.",
+            processing_date.format("%Y-%m-%d"),
             type_dir.display()
         )),
         _ => Err(format!(
-            "Plusieurs schémas sont applicables au rapport {} dans {} : les périodes de validité se chevauchent.",
-            report_date.format("%Y-%m-%d"),
+            "Plusieurs schémas sont applicables à la date de traitement {} dans {} : les périodes de validité se chevauchent.",
+            processing_date.format("%Y-%m-%d"),
             type_dir.display()
         )),
     }
@@ -95,7 +95,7 @@ pub(crate) fn read_json<T: for<'a> Deserialize<'a>>(path: impl AsRef<Path>) -> R
         .map_err(|error| error.to_string())
 }
 
-fn schema_covers_report(schema: &Schema, report_date: NaiveDate) -> Result<bool> {
+fn schema_covers_processing_date(schema: &Schema, processing_date: NaiveDate) -> Result<bool> {
     if schema.version_number.trim().is_empty() {
         return Err("version_number ne doit pas être vide.".to_owned());
     }
@@ -111,7 +111,7 @@ fn schema_covers_report(schema: &Schema, report_date: NaiveDate) -> Result<bool>
     } else {
         None
     };
-    Ok(report_date >= date_start && date_end.is_none_or(|date| report_date <= date))
+    Ok(processing_date >= date_start && date_end.is_none_or(|date| processing_date <= date))
 }
 
 fn parse_day(value: &str) -> Result<NaiveDate> {

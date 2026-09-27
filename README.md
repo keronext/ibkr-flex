@@ -54,8 +54,8 @@ defines one version and records the expected CSV columns in their exact order.
 Each schema includes a non-empty string `version_number` and validity period:
 `date_start` is required, while `date_end: null` means that the version is
 currently active. Dates use the `YYYY-MM-DD` format.
-The validator selects the only schema whose validity period covers the report
-month; overlapping periods are rejected.
+The validator selects the only schema whose validity period covers the current
+UTC processing date; overlapping periods are rejected.
 
 ## Usage
 
@@ -139,8 +139,8 @@ The equivalent direct invocation is:
 Validation warns when the report has no data rows. Schemas enforce the exact
 column list in `schemas/flex/<type>/*.json`; column order is significant.
 The CSV filename embeds its period: `YYYY.csv`, `YYYY-MM.csv`,
-`YYYY-MM-DD.csv`, or `<start>_to_<end>.csv`. Its end date is used to select
-the schema validity period.
+`YYYY-MM-DD.csv`, or `<start>_to_<end>.csv`. This period is checked for a
+valid filename, but schema selection uses the current UTC processing date.
 
 ## Local storage
 
